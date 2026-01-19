@@ -84,7 +84,7 @@ export default function App() {
               <Download className="w-6 h-6 text-white" />
             </div>
             <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-              Stream<span className="text-rose-500">Rip</span>
+              Neuro<span className="text-rose-500">tube</span>
             </span>
           </div>
           <div className="hidden md:flex gap-6 text-sm font-medium text-slate-400">
@@ -247,7 +247,7 @@ export default function App() {
         </main>
 
         <footer className="mt-auto py-6 text-center text-slate-500 text-sm">
-          <p>© 2024 StreamRip. Designed for educational purposes.</p>
+          <p>© 2024 Neurotube. Designed for educational purposes.</p>
         </footer>
 
       </div>

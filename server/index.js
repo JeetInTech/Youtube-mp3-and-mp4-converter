@@ -61,8 +61,11 @@ const getVideoInfo = async (url) => {
   });
 };
 
-// Middleware
-app.use(cors());
+// Middleware - Fixed CORS configuration
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true
+}));
 app.use(express.json());
 
 // Health check
@@ -112,8 +115,10 @@ app.get('/api/info', async (req, res) => {
   }
 });
 
-// Download/convert video
+// Download/convert video - Fixed implementation
 app.get('/api/download', async (req, res) => {
+  let tempFile = null;
+  
   try {
     const { url, format } = req.query;
 
@@ -126,7 +131,9 @@ app.get('/api/download', async (req, res) => {
     const title = info.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
 
     if (format === 'mp3') {
-      // Download as MP3
+      // Create temp file for MP3
+      tempFile = path.join(tmpdir(), `${Date.now()}_${title}.mp3`);
+      
       res.setHeader('Content-Disposition', `attachment; filename="${title}.mp3"`);
       res.setHeader('Content-Type', 'audio/mpeg');
 
@@ -135,32 +142,59 @@ app.get('/api/download', async (req, res) => {
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', '0',
-        '--output', '-',
+        '--ffmpeg-location', ffmpegStatic,
+        '--output', tempFile,
         '--no-check-certificates',
         '--no-warnings'
       ];
 
       const ytdlProcess = spawn(ytdlpPath, args);
-      ytdlProcess.stdout.pipe(res);
       
       ytdlProcess.stderr.on('data', (data) => {
         console.error('yt-dlp stderr:', data.toString());
       });
 
+      ytdlProcess.on('close', (code) => {
+        if (code === 0 && fs.existsSync(tempFile)) {
+          const fileStream = fs.createReadStream(tempFile);
+          fileStream.pipe(res);
+          
+          fileStream.on('end', () => {
+            fs.unlink(tempFile, (err) => {
+              if (err) console.error('Error deleting temp file:', err);
+            });
+          });
+
+          fileStream.on('error', (err) => {
+            console.error('File stream error:', err);
+            fs.unlink(tempFile, () => {});
+            if (!res.headersSent) {
+              res.status(500).json({ error: 'Download failed' });
+            }
+          });
+        } else {
+          if (tempFile) fs.unlink(tempFile, () => {});
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Download failed' });
+          }
+        }
+      });
+
       ytdlProcess.on('error', (err) => {
         console.error('Download error:', err);
+        if (tempFile) fs.unlink(tempFile, () => {});
         if (!res.headersSent) {
           res.status(500).json({ error: 'Download failed' });
         }
       });
 
     } else if (format === 'mp4') {
-      // Download as MP4 - need temp file for merging video+audio
+      // Download as MP4
       res.setHeader('Content-Disposition', `attachment; filename="${title}.mp4"`);
       res.setHeader('Content-Type', 'video/mp4');
 
       // Create temp file path
-      const tempFile = path.join(tmpdir(), `${Date.now()}_${title}.mp4`);
+      tempFile = path.join(tmpdir(), `${Date.now()}_${title}.mp4`);
 
       const args = [
         url,
@@ -179,38 +213,26 @@ app.get('/api/download', async (req, res) => {
       });
 
       ytdlProcess.on('close', (code) => {
-        if (code === 0) {
-          // Wait a bit and check if file exists
-          setTimeout(() => {
-            if (fs.existsSync(tempFile)) {
-              // Stream the file to response
-              const fileStream = fs.createReadStream(tempFile);
-              fileStream.pipe(res);
-              
-              fileStream.on('end', () => {
-                // Clean up temp file
-                fs.unlink(tempFile, (err) => {
-                  if (err) console.error('Error deleting temp file:', err);
-                });
-              });
+        if (code === 0 && fs.existsSync(tempFile)) {
+          const fileStream = fs.createReadStream(tempFile);
+          fileStream.pipe(res);
+          
+          fileStream.on('end', () => {
+            fs.unlink(tempFile, (err) => {
+              if (err) console.error('Error deleting temp file:', err);
+            });
+          });
 
-              fileStream.on('error', (err) => {
-                console.error('File stream error:', err);
-                fs.unlink(tempFile, () => {});
-                if (!res.headersSent) {
-                  res.status(500).json({ error: 'Download failed' });
-                }
-              });
-            } else {
-              console.error('Temp file not found:', tempFile);
-              if (!res.headersSent) {
-                res.status(500).json({ error: 'Download failed - file not created' });
-              }
+          fileStream.on('error', (err) => {
+            console.error('File stream error:', err);
+            fs.unlink(tempFile, () => {});
+            if (!res.headersSent) {
+              res.status(500).json({ error: 'Download failed' });
             }
-          }, 500);
+          });
         } else {
-          console.error('yt-dlp process failed with code:', code);
-          fs.unlink(tempFile, () => {});
+          console.error('Download failed or file not created');
+          if (tempFile) fs.unlink(tempFile, () => {});
           if (!res.headersSent) {
             res.status(500).json({ error: 'Download failed' });
           }
@@ -219,7 +241,7 @@ app.get('/api/download', async (req, res) => {
 
       ytdlProcess.on('error', (err) => {
         console.error('Download error:', err);
-        fs.unlink(tempFile, () => {});
+        if (tempFile) fs.unlink(tempFile, () => {});
         if (!res.headersSent) {
           res.status(500).json({ error: 'Download failed' });
         }
@@ -231,6 +253,9 @@ app.get('/api/download', async (req, res) => {
 
   } catch (error) {
     console.error('Error downloading video:', error);
+    if (tempFile) {
+      fs.unlink(tempFile, () => {});
+    }
     if (!res.headersSent) {
       res.status(500).json({ 
         error: 'Failed to download video',
