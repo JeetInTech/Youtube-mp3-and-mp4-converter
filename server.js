@@ -7,7 +7,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
-import { createServer as createViteServer } from 'vite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,12 +14,16 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isDev = process.env.NODE_ENV !== 'production';
+const isWindows = process.platform === 'win32';
 
-// Set ffmpeg path
-ffmpeg.setFfmpegPath(ffmpegStatic);
+// Set ffmpeg path (use system ffmpeg in Docker/Linux, ffmpeg-static on Windows)
+const ffmpegPath = isWindows ? ffmpegStatic : '/usr/bin/ffmpeg';
+ffmpeg.setFfmpegPath(ffmpegPath);
 
-// Set yt-dlp binary path
-const ytdlpPath = path.join(__dirname, 'node_modules', 'youtube-dl-exec', 'bin', 'yt-dlp.exe');
+// Set yt-dlp binary path (cross-platform)
+const ytdlpPath = isWindows 
+  ? path.join(__dirname, 'node_modules', 'youtube-dl-exec', 'bin', 'yt-dlp.exe')
+  : '/usr/local/bin/yt-dlp';
 
 // Helper to validate YouTube URL (including Shorts)
 const isValidYouTubeUrl = (url) => {
@@ -196,7 +199,7 @@ app.get('/api/download', async (req, res) => {
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', '0', // Best quality (320kbps)
-        '--ffmpeg-location', ffmpegStatic,
+        '--ffmpeg-location', ffmpegPath,
         '--output', tempFile,
         '--no-check-certificates',
         '--no-warnings',
@@ -272,7 +275,7 @@ app.get('/api/download', async (req, res) => {
         url,
         '--format', formatString,
         '--merge-output-format', 'mp4',
-        '--ffmpeg-location', ffmpegStatic,
+        '--ffmpeg-location', ffmpegPath,
         '--output', tempFile,
         '--no-check-certificates',
         '--no-warnings',
@@ -348,7 +351,8 @@ app.get('/api/download', async (req, res) => {
 // Start server
 async function startServer() {
   if (isDev) {
-    // Development mode: Use Vite middleware
+    // Development mode: Use Vite middleware (dynamic import)
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa'
