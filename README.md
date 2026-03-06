@@ -1,79 +1,67 @@
-# StreamRip - YouTube Converter
+# Neurotube - YouTube Converter
 
-A modern YouTube to MP3/MP4 converter with a beautiful UI and Python backend.
+A modern YouTube to MP3/MP4 converter with a beautiful UI and fast downloads.
 
 ## Features
 
-- 🎵 Convert YouTube videos to MP3 (320kbps audio)
-- 🎥 Download YouTube videos as MP4 (highest quality)
+- 🎵 Convert YouTube videos to MP3 (320kbps high-quality audio)
+- 🎥 Download YouTube videos as MP4 (up to 1080p HD)
+- 📱 YouTube Shorts support
 - 🎨 Modern, sleek UI with Tailwind CSS
-- ⚡ Fast conversion using yt-dlp + FFmpeg
-- 🐍 Python Flask backend
+- ⚡ Fast concurrent downloads using yt-dlp + FFmpeg
+- 🚀 Single unified server (frontend + backend)
 - 📱 Responsive design
 
 ## Prerequisites
 
 - **Node.js** (v18 or higher)
-- **Python** (v3.8 or higher)
-- **FFmpeg** (required for audio conversion)
-  - Windows: Download from https://ffmpeg.org/download.html and add to PATH
-  - Or install via Chocolatey: `choco install ffmpeg`
 
 ## Installation
-
-### 1. Install Frontend Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Setup Python Backend
-
-```bash
-cd backend
-python -m venv venv
-venv\Scripts\activate  # On Windows
-pip install -r requirements.txt
-```
-
 ## Usage
 
-### Option 1: Using Batch Files (Windows)
+### Quick Start (Windows)
 
-1. Start the backend:
+Simply double-click `start.bat` or run:
+
 ```bash
-cd backend
-start_backend.bat
+npm start
 ```
 
-2. In a new terminal, start the frontend:
-```bash
-npm run dev
-```
+Then open your browser to `http://localhost:3000`
 
-### Option 2: Manual Start
+### Development Mode
 
-1. Start the Python backend:
-```bash
-cd backend
-venv\Scripts\activate
-python app.py
-```
-
-2. In a new terminal, start the frontend:
 ```bash
 npm run dev
 ```
 
-3. Open your browser and go to `http://localhost:5173`
+### Production Mode
 
-4. Paste a YouTube URL, select format (MP3 or MP4), and download!
+```bash
+npm run production
+```
+
+This will build the frontend and serve everything from a single optimized server.
+
+## How to Use
+
+1. Open `http://localhost:3000` in your browser
+2. Paste a YouTube URL (videos or Shorts)
+3. Select format: MP3 (audio) or MP4 (video)
+4. For MP4, select quality (1080p, 720p, 480p, 360p)
+5. Click the arrow button to fetch video info
+6. Click "Download" to get your file!
 
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/info` | GET | Get video info (title, thumbnail, duration) |
+| `/api/info` | GET | Get video info (title, thumbnail, duration, available qualities) |
 | `/api/download` | GET | Download video as MP3 or MP4 |
 | `/api/health` | GET | Health check |
 

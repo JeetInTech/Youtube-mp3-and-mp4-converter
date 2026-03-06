@@ -1,70 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import { Download, Music, Video, Link, ArrowRight, CheckCircle, Loader2, AlertCircle, Play } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, Music, Video, Link, ArrowRight, CheckCircle, Loader2, AlertCircle, Play, Zap, Settings } from 'lucide-react';
 
 export default function App() {
   const [url, setUrl] = useState('');
   const [format, setFormat] = useState('mp3'); // 'mp3' or 'mp4'
-  const [status, setStatus] = useState('idle'); // idle, processing, converting, success, error
-  const [progress, setProgress] = useState(0);
+  const [quality, setQuality] = useState('1080p'); // Default quality for mp4
+  const [status, setStatus] = useState('idle'); // idle, processing, success, error
   const [videoData, setVideoData] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Extract YouTube ID from various URL formats
-  const getYoutubeId = (url) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
+  // Validate YouTube URL (including Shorts)
+  const isValidYouTubeUrl = (url) => {
+    const patterns = [
+      /^(https?:\/\/)?(www\.)?youtube\.com\/watch\?v=[\w-]+/,
+      /^(https?:\/\/)?(www\.)?youtube\.com\/shorts\/[\w-]+/,
+      /^(https?:\/\/)?youtu\.be\/[\w-]+/,
+      /^(https?:\/\/)?(www\.)?youtube\.com\/embed\/[\w-]+/,
+      /^(https?:\/\/)?(www\.)?youtube\.com\/v\/[\w-]+/
+    ];
+    return patterns.some(pattern => pattern.test(url));
   };
 
   const handleConvert = async () => {
     setErrorMsg('');
-    const videoId = getYoutubeId(url);
+    setVideoData(null);
 
-    if (!videoId) {
-      setErrorMsg('Please enter a valid YouTube URL');
+    if (!url.trim()) {
+      setErrorMsg('Please enter a YouTube URL');
       setStatus('error');
       return;
     }
 
-    // 1. Fetching Info Phase
+    if (!isValidYouTubeUrl(url)) {
+      setErrorMsg('Please enter a valid YouTube URL (videos or Shorts)');
+      setStatus('error');
+      return;
+    }
+
     setStatus('processing');
     
     try {
       const response = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch video info');
-      }
       const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to fetch video info');
+      }
       
       setVideoData({
         id: data.id,
         title: data.title,
         thumbnail: data.thumbnail,
         duration: data.duration,
-        quality: data.quality || (format === 'mp4' ? 'HD' : 'High Quality')
+        isShort: data.isShort,
+        channel: data.channel,
+        availableQualities: data.availableQualities || ['1080p', '720p', '480p', '360p'],
+        bestQuality: data.bestQuality || '1080p'
       });
       
-      // 2. Ready for Download
-      // We skip "converting" simulation because the server streams it directly on download click
+      // Set quality to best available if current selection is not available
+      if (data.availableQualities && !data.availableQualities.includes(quality)) {
+        setQuality(data.availableQualities[0] || '1080p');
+      }
+      
       setStatus('success');
-      setProgress(100);
 
     } catch (err) {
       console.error(err);
-      setErrorMsg('Failed to fetch video info. Please check the URL.');
+      setErrorMsg(err.message || 'Failed to fetch video info. Please check the URL.');
       setStatus('error');
     }
   };
-
-  // Removed simulated progress bar effect as we don't need it for the info fetch
-  // The download happens via browser download manager when clicking the button
-
 
   const handleReset = () => {
     setStatus('idle');
     setUrl('');
     setVideoData(null);
-    setProgress(0);
+    setErrorMsg('');
+  };
+
+  const getDownloadUrl = () => {
+    const baseUrl = `/api/download?url=${encodeURIComponent(url)}&format=${format}`;
+    return format === 'mp4' ? `${baseUrl}&quality=${quality}` : baseUrl;
   };
 
   return (
@@ -88,7 +105,7 @@ export default function App() {
             </span>
           </div>
           <div className="hidden md:flex gap-6 text-sm font-medium text-slate-400">
-            <a href="#" className="hover:text-white transition-colors">How it works</a>
+            <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#" className="hover:text-white transition-colors">FAQ</a>
             <a href="#" className="hover:text-white transition-colors">Support</a>
           </div>
@@ -105,8 +122,24 @@ export default function App() {
               </span>
             </h1>
             <p className="text-slate-400 text-lg max-w-lg mx-auto">
-              Paste a YouTube link below to download high-quality MP3 audio or MP4 video files instantly.
+              Download YouTube videos & Shorts in HD 1080p MP4 or high-quality 320kbps MP3 instantly.
             </p>
+          </div>
+
+          {/* Feature badges */}
+          <div className="flex flex-wrap justify-center gap-3 mb-8">
+            <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 border border-slate-700">
+              <Zap className="w-3 h-3 text-yellow-500" /> Fast Downloads
+            </div>
+            <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 border border-slate-700">
+              <Video className="w-3 h-3 text-blue-500" /> 1080p HD
+            </div>
+            <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 border border-slate-700">
+              <Music className="w-3 h-3 text-rose-500" /> 320kbps Audio
+            </div>
+            <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full text-xs font-medium text-slate-300 border border-slate-700">
+              <Play className="w-3 h-3 text-green-500" /> Shorts Support
+            </div>
           </div>
 
           {/* Converter Card */}
@@ -128,6 +161,29 @@ export default function App() {
               </button>
             </div>
 
+            {/* Quality Selector for MP4 */}
+            {format === 'mp4' && (
+              <div className="flex items-center gap-2 px-3 py-2 mb-2">
+                <Settings className="w-4 h-4 text-slate-500" />
+                <span className="text-sm text-slate-400">Quality:</span>
+                <div className="flex gap-2">
+                  {['1080p', '720p', '480p', '360p'].map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => setQuality(q)}
+                      className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                        quality === q 
+                          ? 'bg-rose-500 text-white' 
+                          : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white'
+                      }`}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Input Area */}
             <div className="relative group">
               <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
@@ -135,7 +191,7 @@ export default function App() {
               </div>
               <input 
                 type="text" 
-                placeholder="Paste YouTube URL here..."
+                placeholder="Paste YouTube URL here (videos or Shorts)..."
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleConvert()}
@@ -143,7 +199,7 @@ export default function App() {
               />
               <button 
                 onClick={handleConvert}
-                disabled={status === 'processing' || status === 'converting'}
+                disabled={status === 'processing'}
                 className="absolute right-2 top-2 bottom-2 bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-500 hover:to-orange-500 text-white px-6 rounded-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-rose-500/20"
               >
                 {status === 'processing' ? (
@@ -157,14 +213,14 @@ export default function App() {
             {/* Error Message */}
             {errorMsg && (
               <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle className="w-4 h-4" />
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 {errorMsg}
               </div>
             )}
           </div>
 
           {/* Result Card */}
-          {videoData && status !== 'idle' && status !== 'error' && (
+          {videoData && status === 'success' && (
             <div className="w-full mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="bg-slate-800 border border-white/5 rounded-2xl overflow-hidden shadow-xl">
                 
@@ -177,74 +233,91 @@ export default function App() {
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Play className="w-8 h-8 text-white fill-current" />
+                      <Play className="w-8 h-8 text-white fill-current" />
                     </div>
+                    {videoData.isShort && (
+                      <div className="absolute top-1 left-1 bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                        SHORT
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
                     <h3 className="text-lg md:text-xl font-bold text-white truncate leading-tight mb-2">
                       {videoData.title}
                     </h3>
-                    <div className="flex items-center gap-3 text-sm text-slate-400">
+                    {videoData.channel && (
+                      <p className="text-sm text-slate-400 mb-2 truncate">{videoData.channel}</p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
                       <span className="bg-slate-700/50 px-2 py-0.5 rounded text-xs border border-white/5">
                         {videoData.duration}
                       </span>
                       <span className="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded text-xs border border-rose-500/20 uppercase">
-                        {videoData.quality}
+                        {format === 'mp4' ? quality : '320kbps'}
                       </span>
-                      <span>• {format.toUpperCase()}</span>
+                      <span className="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded text-xs border border-blue-500/20 uppercase">
+                        {format.toUpperCase()}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Progress / Download Section */}
+                {/* Download Section */}
                 <div className="bg-slate-900/50 p-6 border-t border-white/5">
-                  {status === 'converting' ? (
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm font-medium">
-                        <span className="text-slate-400">Converting...</span>
-                        <span className="text-rose-500">{progress}%</span>
-                      </div>
-                      <div className="h-2 w-full bg-slate-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-rose-500 to-orange-500 transition-all duration-300 ease-out"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-center text-slate-500 animate-pulse">
-                        Please wait while we prepare your file...
-                      </p>
+                  <div className="flex flex-col md:flex-row gap-3 items-center justify-between animate-in fade-in duration-300">
+                    <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+                      <CheckCircle className="w-5 h-5" />
+                      Ready to download!
                     </div>
-                  ) : (
-                    <div className="flex flex-col md:flex-row gap-3 items-center justify-between animate-in fade-in duration-300">
-                      <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
-                        <CheckCircle className="w-5 h-5" />
-                        Conversion Complete!
-                      </div>
-                      <div className="flex gap-3 w-full md:w-auto">
-                        <button 
-                          onClick={handleReset}
-                          className="flex-1 md:flex-none px-6 py-2.5 rounded-lg border border-slate-600 hover:bg-slate-800 text-slate-300 font-medium transition-all"
-                        >
-                          Convert Another
-                        </button>
-                        <a 
-                          href={`/api/download?url=${encodeURIComponent(url)}&format=${format}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-500/20 transition-all"
-                        >
-                          <Download className="w-4 h-4" />
-                          Download File
-                        </a>
-                      </div>
+                    <div className="flex gap-3 w-full md:w-auto">
+                      <button 
+                        onClick={handleReset}
+                        className="flex-1 md:flex-none px-6 py-2.5 rounded-lg border border-slate-600 hover:bg-slate-800 text-slate-300 font-medium transition-all"
+                      >
+                        Convert Another
+                      </button>
+                      <a 
+                        href={getDownloadUrl()}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-500/20 transition-all"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download {format.toUpperCase()}
+                      </a>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
         </main>
+
+        {/* Features Section */}
+        <section id="features" className="mt-16 mb-8">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-6">
+              <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center mb-4">
+                <Video className="w-5 h-5 text-blue-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">HD 1080p Video</h3>
+              <p className="text-sm text-slate-400">Download videos in full HD quality. Select from 1080p, 720p, 480p, or 360p.</p>
+            </div>
+            <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-6">
+              <div className="w-10 h-10 bg-rose-500/20 rounded-lg flex items-center justify-center mb-4">
+                <Music className="w-5 h-5 text-rose-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">320kbps Audio</h3>
+              <p className="text-sm text-slate-400">Convert to high-quality MP3 audio at 320kbps bitrate for the best sound.</p>
+            </div>
+            <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-6">
+              <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center mb-4">
+                <Play className="w-5 h-5 text-green-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white mb-2">YouTube Shorts</h3>
+              <p className="text-sm text-slate-400">Full support for YouTube Shorts. Just paste the Shorts URL and download.</p>
+            </div>
+          </div>
+        </section>
 
         <footer className="mt-auto py-6 text-center text-slate-500 text-sm">
           <p>© 2024 Neurotube. Designed for educational purposes.</p>
